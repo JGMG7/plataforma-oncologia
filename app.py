@@ -174,8 +174,8 @@ if st.session_state.role == "Paciente":
 elif st.session_state.role == "Investigador":
     st.title("📡 Radar Clínico y Monitoreo RCT")
     
-    # ⚠️ REEMPLAZA ESTE TEXTO CON EL LINK EXACTO DE TU APP EN STREAMLIT CLOUD:
-    url_app = "https://plataforma-oncologia.streamlit.app" 
+    # ⚠️ LINK DE TU APP EN STREAMLIT CLOUD:
+    url_app = "https://plataforma-oncologia.streamlit.app/?embed=true" 
     
     try:
         res_pacientes = supabase.table("pacientes").select("*").execute()
