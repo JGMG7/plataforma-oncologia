@@ -4,55 +4,126 @@ import datetime
 import pandas as pd
 from supabase import create_client, Client
 
-st.set_page_config(page_title="DTx Oncología | Udelar", page_icon="🧬", layout="wide")
+st.set_page_config(page_title="DTx Oncología | ISEF-CURE-Udelar", page_icon="🧬", layout="wide")
 
-# --- 1. CONEXIÓN A LA BÓVEDA EN LA NUBE ---
+# --- 1. CONEXIÓN A LA NUBE ---
 @st.cache_resource
 def init_connection():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 try:
     supabase: Client = init_connection()
 except Exception as e:
-    st.error(f"Error de conexión. Revisa tus llaves en secrets.toml. Detalles: {e}")
+    st.error(f"Error de conexión: {e}")
     st.stop()
 
-# --- 2. MOTOR ALGORÍTMICO MATUTINO ---
+# --- 2. GESTIÓN DE SESIONES (SEGURIDAD) ---
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.role = None
+    st.session_state.user_id = None
+    st.session_state.cohorte = None
+
+# --- MOTOR ALGORÍTMICO MATUTINO ---
 def calcular_semaforo(eficiencia, latencia, fatiga, estres, dolor_max):
     if fatiga >= 8 or dolor_max >= 7: return "🔴 ROJO"
     elif eficiencia < 85.0 or latencia > 45 or fatiga >= 5 or estres >= 6: return "🟡 AMARILLO"
     else: return "🟢 VERDE"
 
-st.sidebar.title("Plataforma DTx 🧬")
-rol = st.sidebar.radio("Rol de Usuario:", ["📱 Paciente (App Móvil)", "🔬 Fisiólogo (Tablet)"])
-st.sidebar.markdown("---")
-st.sidebar.caption("🟢 Conectado a Servidor Seguro en la Nube")
-
 hoy_str = str(datetime.date.today())
 
 # =====================================================================
-# 📱 UNIVERSO 1: PACIENTE
+# 🔐 PANTALLA DE LOGIN (EL CANDADO ÉTICO)
 # =====================================================================
-if rol == "📱 Paciente (App Móvil)":
+if not st.session_state.logged_in:
+    col_izq, col_login, col_der = st.columns([1, 2, 1])
+    
+    with col_login:
+        st.markdown("<h2 style='text-align: center;'>🧬 DTx Oncología</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: gray;'>Plataforma de Ensayo Clínico - Acceso Restringido</p>", unsafe_allow_html=True)
+        st.divider()
+        
+        tab_paciente, tab_investigador = st.tabs(["📱 Ingreso Pacientes", "🔬 Panel Fisiólogo"])
+        
+        # LOGIN PACIENTE
+        with tab_paciente:
+            with st.form("login_paciente"):
+                st.markdown("#### Identificación de Sujeto")
+                user_input = st.text_input("ID de Paciente (ej. SUBJ_042)").strip().upper()
+                pin_input = st.text_input("PIN Secreto de 4 dígitos", type="password", max_chars=4)
+                
+                submitted = st.form_submit_button("Ingresar a mi Triage 🚀", use_container_width=True, type="primary")
+                
+                if submitted:
+                    if user_input and pin_input:
+                        with st.spinner("Verificando credenciales..."):
+                            try:
+                                res = supabase.table("pacientes").select("*").eq("id_paciente", user_input).execute()
+                                if len(res.data) > 0:
+                                    datos_bd = res.data[0]
+                                    if str(datos_bd.get("pin")) == pin_input:
+                                        st.session_state.logged_in = True
+                                        st.session_state.role = "Paciente"
+                                        st.session_state.user_id = datos_bd["id_paciente"]
+                                        st.session_state.cohorte = datos_bd["cohorte"]
+                                        st.rerun() # Desbloquea la app al instante
+                                    else:
+                                        st.error("❌ PIN incorrecto.")
+                                else:
+                                    st.error("❌ ID de Paciente no encontrado.")
+                            except Exception as e:
+                                st.error(f"Error de red: {e}")
+                    else:
+                        st.warning("⚠️ Complete ambos campos.")
+
+        # LOGIN INVESTIGADOR
+        with tab_investigador:
+            with st.form("login_investigador"):
+                st.markdown("#### Acceso Clínico")
+                pass_input = st.text_input("Contraseña Maestra", type="password")
+                
+                submitted_inv = st.form_submit_button("Desbloquear Radar Clínico 🔐", use_container_width=True, type="primary")
+                
+                if submitted_inv:
+                    if pass_input == st.secrets.get("INVESTIGADOR_PASSWORD", "15.14.3.15.5.6.1."):
+                        st.session_state.logged_in = True
+                        st.session_state.role = "Fisiólogo"
+                        st.session_state.user_id = "Investigador Principal"
+                        st.rerun()
+                    else:
+                        st.error("❌ Contraseña denegada.")
+                        
+    # 🛑 ESTE CÓDIGO ES VITAL: Detiene la ejecución si no estás logueado
+    st.stop() 
+
+# =====================================================================
+# 🚪 BARRA LATERAL (BOTÓN DE SALIDA SEGURO)
+# =====================================================================
+st.sidebar.title("Plataforma DTx 🧬")
+if st.session_state.role == "Investigador":
+    st.sidebar.success("✅ Conectado: Fisiólogo Clínico")
+else:
+    st.sidebar.info(f"👤 Sujeto: {st.session_state.user_id}")
+    st.sidebar.caption(f"Cohorte: {st.session_state.cohorte}")
+
+st.sidebar.divider()
+if st.sidebar.button("Cerrar Sesión 🔒", use_container_width=True, type="primary"):
+    st.session_state.logged_in = False
+    st.session_state.role = None
+    st.session_state.user_id = None
+    st.session_state.cohorte = None
+    st.rerun()
+
+# =====================================================================
+# 📱 UNIVERSO 1: PACIENTE (VISTA BLINDADA)
+# =====================================================================
+if st.session_state.role == "Paciente":
     col1, col_celular, col3 = st.columns([1, 2, 1])
     
     with col_celular:
         st.title("☀️ Triage Matutino")
-        
-        # Obtenemos los pacientes reales desde la Nube
-        try:
-            res_pacientes = supabase.table("pacientes").select("*").execute()
-            lista_pacientes = [p["id_paciente"] for p in res_pacientes.data]
-        except Exception:
-            lista_pacientes = []
-
-        if not lista_pacientes:
-            st.warning("No hay pacientes en la base de datos.")
-            st.stop()
-
-        paciente_id = st.selectbox("Identificación:", lista_pacientes)
+        # El paciente YA NO ELIGE su ID. La app lo sabe por el Login.
+        st.markdown(f"**Identidad Protegida:** Sujeto `{st.session_state.user_id}`")
         st.divider()
         
         st.subheader("💤 1. Arquitectura del Sueño")
@@ -93,14 +164,12 @@ if rol == "📱 Paciente (App Móvil)":
                     d = st.slider(f"Intensidad en {zona} (1-10):", 1, 10, 5)
                     dolor_max = max(dolor_max, d)
         
-        # INYECCIÓN DIRECTA A LA NUBE
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Enviar Reporte 🚀", use_container_width=True, type="primary"):
+        if st.button("Enviar Reporte a la Clínica 🚀", use_container_width=True, type="primary"):
             color = calcular_semaforo(eficiencia, latencia, fatiga, estres, dolor_max)
             
-            # Paquete JSON para la Nube
             datos_triage = {
-                "id_paciente": paciente_id, 
+                "id_paciente": st.session_state.user_id, # Usamos el ID verificado en el Login
                 "fecha": hoy_str, 
                 "estado_triage": "Completado",
                 "semaforo": color, 
@@ -115,13 +184,9 @@ if rol == "📱 Paciente (App Móvil)":
             
             with st.spinner("Cifrando y transmitiendo a la bóveda..."):
                 try:
-                    # 1. Comprobamos si el paciente ya reportó hoy
-                    existe = supabase.table("registros_diarios").select("id").eq("id_paciente", paciente_id).eq("fecha", hoy_str).execute()
-                    
-                    # 2. Actualizamos o Insertamos para no duplicar datos
+                    existe = supabase.table("registros_diarios").select("id").eq("id_paciente", st.session_state.user_id).eq("fecha", hoy_str).execute()
                     if len(existe.data) > 0:
-                        id_registro = existe.data[0]["id"]
-                        supabase.table("registros_diarios").update(datos_triage).eq("id", id_registro).execute()
+                        supabase.table("registros_diarios").update(datos_triage).eq("id", existe.data[0]["id"]).execute()
                     else:
                         supabase.table("registros_diarios").insert(datos_triage).execute()
                         
@@ -132,15 +197,13 @@ if rol == "📱 Paciente (App Móvil)":
 # =====================================================================
 # 🔬 UNIVERSO 2: EL DASHBOARD DEL INVESTIGADOR
 # =====================================================================
-elif rol == "🔬 Fisiólogo (Tablet)":
+elif st.session_state.role == "Fisiólogo":
     st.title("📡 Radar Clínico L-M-V")
     
     try:
-        # 1. DESCARGA DE DATOS EN VIVO
         res_pacientes = supabase.table("pacientes").select("*").execute()
         res_registros = supabase.table("registros_diarios").select("*").eq("fecha", hoy_str).execute()
         
-        # Cruzamos los pacientes con los reportes de HOY usando Pandas
         df_pacientes = pd.DataFrame(res_pacientes.data)
         if df_pacientes.empty:
             st.warning("No hay pacientes registrados.")
@@ -154,7 +217,6 @@ elif rol == "🔬 Fisiólogo (Tablet)":
             for col in ["estado_triage", "semaforo", "eficiencia_sueno", "fatiga_bfi", "dolor_maximo", "zonas_dolor", "estado_sesion"]:
                 df_radar[col] = None
                 
-        # Llenamos vacíos
         df_radar["estado_triage"] = df_radar["estado_triage"].fillna("Pendiente")
         df_radar["semaforo"] = df_radar["semaforo"].fillna("⚪")
         df_radar["eficiencia_sueno"] = df_radar["eficiencia_sueno"].fillna(0.0)
@@ -162,7 +224,6 @@ elif rol == "🔬 Fisiólogo (Tablet)":
         df_radar["dolor_maximo"] = df_radar["dolor_maximo"].fillna(0)
         df_radar["estado_sesion"] = df_radar["estado_sesion"].fillna("Pendiente")
         
-        # Tabla Visual
         df_mostrar = df_radar.rename(columns={
             "id_paciente": "ID Paciente", "cohorte": "Cohorte", "estado_triage": "Estado AM",
             "semaforo": "Semáforo", "eficiencia_sueno": "Eficiencia %", "fatiga_bfi": "Fatiga BFI",
@@ -172,7 +233,6 @@ elif rol == "🔬 Fisiólogo (Tablet)":
         st.dataframe(df_mostrar[["ID Paciente", "Cohorte", "Estado AM", "Semáforo", "Eficiencia %", "Fatiga BFI", "Dolor Máx"]].set_index("ID Paciente"), use_container_width=True)
         st.divider()
         
-        # 2. DATA ENTRY DEL LABORATORIO (Actualiza la Nube)
         st.subheader("📋 Intervención Intra-Sesión (Exporta a Nube)")
         
         if not df_radar.empty:
@@ -186,7 +246,6 @@ elif rol == "🔬 Fisiólogo (Tablet)":
             if estado_am == "Pendiente":
                 st.warning("⚠️ Este paciente aún no ha completado el Triage AM en su celular.")
             else:
-                # Alertas Cruzadas
                 c_alerta1, c_alerta2 = st.columns(2)
                 if float(datos_pac["eficiencia_sueno"]) < 85.0:
                     c_alerta1.warning(f"💤 **Alerta Neural:** Eficiencia del sueño en {float(datos_pac['eficiencia_sueno']):.1f}%.")
@@ -195,7 +254,6 @@ elif rol == "🔬 Fisiólogo (Tablet)":
 
                 st.markdown("---")
 
-                # Prescripción Dinámica
                 if "ROJO" in semaforo:
                     st.error("🚨 ZONA ROJA: TOXICIDAD AGUDA. Carga mecánica bloqueada.")
                     if st.button("Guardar Sesión Vagal en la Nube 🫁"):
@@ -207,7 +265,6 @@ elif rol == "🔬 Fisiólogo (Tablet)":
                     if "AMARILLO" in semaforo: st.warning("⚠️ ZONA AMARILLA: DOWN-REGULATION (-1 Serie, +2 RIR).")
                     else: st.success("✅ ZONA VERDE: HOMEOSTASIS (Dosis al 100%).")
 
-                    st.markdown("#### Registro de Cargas Reales")
                     c1, c2 = st.columns(2)
                     
                     if cohorte == "PROSTATA":
