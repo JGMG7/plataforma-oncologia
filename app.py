@@ -23,6 +23,7 @@ if 'logged_in' not in st.session_state:
     st.session_state.role = None
     st.session_state.user_id = None
     st.session_state.cohorte = None
+    st.session_state.grupo = None # NUEVO: Variable de Aleatorización RCT
 
 def calcular_semaforo(eficiencia, latencia, fatiga, estres, dolor_max):
     if fatiga >= 8 or dolor_max >= 7: return "🔴 ROJO"
@@ -45,9 +46,9 @@ if not st.session_state.logged_in:
         
         with tab_paciente:
             with st.form("login_paciente"):
-                user_input = st.text_input("ID de Paciente (ej. SUBJ_042)").strip().upper()
+                user_input = st.text_input("ID de Paciente (ej. SUBJ_042 o CTRL_001)").strip().upper()
                 pin_input = st.text_input("PIN Secreto de 4 dígitos", type="password", max_chars=4)
-                submitted = st.form_submit_button("Ingresar a mi Triage 🚀", use_container_width=True, type="primary")
+                submitted = st.form_submit_button("Ingresar a mi App 🚀", use_container_width=True, type="primary")
                 
                 if submitted:
                     if user_input and pin_input:
@@ -61,6 +62,8 @@ if not st.session_state.logged_in:
                                         st.session_state.role = "Paciente"
                                         st.session_state.user_id = datos_bd["id_paciente"]
                                         st.session_state.cohorte = datos_bd["cohorte"]
+                                        # Cargamos a qué grupo pertenece. Si no dice, asumimos Experimental.
+                                        st.session_state.grupo = datos_bd.get("grupo") or "EXPERIMENTAL"
                                         st.rerun()
                                     else:
                                         st.error("❌ PIN incorrecto.")
@@ -90,26 +93,37 @@ if not st.session_state.logged_in:
 # 🚪 BARRA LATERAL
 # =====================================================================
 st.sidebar.title("Plataforma DTx 🧬")
-if st.session_state.role == "Investigador": st.sidebar.success("✅ Conectado: Fisiólogo Clínico")
+if st.session_state.role == "Investigador": 
+    st.sidebar.success("✅ Conectado: Fisiólogo Clínico")
 else:
     st.sidebar.info(f"👤 Sujeto: {st.session_state.user_id}")
     st.sidebar.caption(f"Cohorte: {st.session_state.cohorte}")
+    # Nota Metodológica: Ocultamos la etiqueta "Grupo Control" al paciente para evitar el sesgo de decepción.
 
 st.sidebar.divider()
 if st.sidebar.button("Cerrar Sesión 🔒", use_container_width=True, type="primary"):
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.user_id = None
+    st.session_state.cohorte = None
+    st.session_state.grupo = None
     st.rerun()
 
 # =====================================================================
-# 📱 UNIVERSO 1: PACIENTE
+# 📱 UNIVERSO 1: PACIENTE (BIFURCACIÓN DE LENGUAJE)
 # =====================================================================
 if st.session_state.role == "Paciente":
     col1, col_celular, col3 = st.columns([1, 2, 1])
     with col_celular:
-        st.title("☀️ Triage Matutino")
-        st.markdown(f"**Identidad Protegida:** Sujeto `{st.session_state.user_id}`")
+        
+        # BIFURCACIÓN DE TÍTULOS
+        if st.session_state.grupo == "CONTROL":
+            st.title("📓 Diario de Síntomas")
+            st.markdown("Tu reporte diario es vital para comprender la evolución del tratamiento oncológico.")
+        else:
+            st.title("☀️ Triage Matutino")
+            st.markdown("Tu reporte ajustará la dosis de tu sesión de entrenamiento de hoy.")
+            
         st.divider()
         
         st.subheader("💤 1. Arquitectura del Sueño")
@@ -129,7 +143,7 @@ if st.session_state.role == "Paciente":
         t_dormido = max(0, t_cama - latencia - despertares) 
         eficiencia = (t_dormido / t_cama) * 100 if t_cama > 0 else 0
 
-        st.info(f"📊 Dormiste **{t_dormido/60:.1f} hs netas**. Eficiencia: **{eficiencia:.1f}%**")
+        st.info(f"📊 Tiempo de sueño: **{t_dormido/60:.1f} hs netas**.")
 
         st.divider()
         st.subheader("🔋 2. Fatiga y Estrés")
@@ -151,7 +165,11 @@ if st.session_state.role == "Paciente":
                     dolor_max = max(dolor_max, d)
         
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Enviar Reporte a la Clínica 🚀", use_container_width=True, type="primary"):
+        
+        btn_txt = "Enviar Registro Diario 🚀" if st.session_state.grupo == "CONTROL" else "Enviar Reporte a Clínica 🚀"
+        
+        if st.button(btn_txt, use_container_width=True, type="primary"):
+            # Para el Investigador sí calculamos el semáforo del control (así podemos ver cuándo tienen toxicidad)
             color = calcular_semaforo(eficiencia, latencia, fatiga, estres, dolor_max)
             
             datos_triage = {
@@ -168,15 +186,21 @@ if st.session_state.role == "Paciente":
                         supabase.table("registros_diarios").update(datos_triage).eq("id", existe.data[0]["id"]).execute()
                     else:
                         supabase.table("registros_diarios").insert(datos_triage).execute()
-                    st.success("✅ ¡Reporte guardado! Te esperamos a las 13:00 hrs.")
+                    
+                    # BIFURCACIÓN DEL MENSAJE FINAL
+                    if st.session_state.grupo == "CONTROL":
+                        st.success("✅ ¡Registro guardado! Muchas gracias por tu compromiso con la ciencia y la investigación.")
+                    else:
+                        st.success("✅ ¡Reporte guardado! Te esperamos a las 13:00 hrs para tu sesión.")
+                        st.info("💡 **Dato:** El entrenamiento de fuerza guiado reduce la fatiga oncológica según la evidencia reciente.")
                 except Exception as e:
                     st.error(f"Error de conexión: {e}")
 
 # =====================================================================
-# 🔬 UNIVERSO 2: INVESTIGADOR (CON VISUAL ANALYTICS)
+# 🔬 UNIVERSO 2: INVESTIGADOR (BIFURCACIÓN CLÍNICA)
 # =====================================================================
 elif st.session_state.role == "Investigador":
-    st.title("📡 Radar Clínico y Analítica Longitudinal")
+    st.title("📡 Radar Clínico y Monitoreo RCT")
     
     try:
         res_pacientes = supabase.table("pacientes").select("*").execute()
@@ -192,26 +216,30 @@ elif st.session_state.role == "Investigador":
             for col in ["estado_triage", "semaforo", "eficiencia_sueno", "fatiga_bfi", "dolor_maximo", "zonas_dolor", "estado_sesion"]:
                 df_radar[col] = None
                 
-        # Mostrar Radar de Hoy
+        # Asegurarnos de que el grupo existe por si la BD es vieja
+        if 'grupo' not in df_radar.columns:
+            df_radar['grupo'] = 'EXPERIMENTAL'
+            
+        # Mostrar Radar de Hoy incluyendo la columna GRUPO
         df_mostrar = df_radar.rename(columns={
-            "id_paciente": "ID Paciente", "cohorte": "Cohorte", "estado_triage": "Estado AM",
+            "id_paciente": "ID Paciente", "grupo": "Brazo RCT", "cohorte": "Cohorte", "estado_triage": "Estado AM",
             "semaforo": "Semáforo", "eficiencia_sueno": "Eficiencia %", "fatiga_bfi": "Fatiga BFI", "dolor_maximo": "Dolor Máx"
-        }).fillna({"Estado AM": "Pendiente", "Semáforo": "⚪", "Eficiencia %": 0.0, "Fatiga BFI": 0, "Dolor Máx": 0})
+        }).fillna({"Brazo RCT": "EXPERIMENTAL", "Estado AM": "Pendiente", "Semáforo": "⚪", "Eficiencia %": 0.0, "Fatiga BFI": 0, "Dolor Máx": 0})
         
-        st.subheader("👥 Cohorte Citada para Hoy")
-        st.dataframe(df_mostrar[["ID Paciente", "Cohorte", "Estado AM", "Semáforo", "Eficiencia %", "Fatiga BFI", "Dolor Máx"]].set_index("ID Paciente"), use_container_width=True)
+        st.subheader("👥 Estado de las Cohortes (Hoy)")
+        st.dataframe(df_mostrar[["ID Paciente", "Brazo RCT", "Cohorte", "Estado AM", "Semáforo", "Eficiencia %", "Fatiga BFI", "Dolor Máx"]].set_index("ID Paciente"), use_container_width=True)
         st.divider()
         
         if not df_radar.empty:
-            paciente_sel = st.selectbox("📋 Seleccionar paciente:", df_radar["id_paciente"].tolist())
+            paciente_sel = st.selectbox("📋 Seleccionar paciente para revisión:", df_radar["id_paciente"].tolist())
             datos_pac = df_radar[df_radar["id_paciente"] == paciente_sel].iloc[0]
+            grupo_sel = str(datos_pac.get("grupo", "EXPERIMENTAL")).upper()
             
-            # --- TABS PARA ORGANIZAR DATA ENTRY Y GRÁFICOS ---
-            tab_hoy, tab_historial = st.tabs(["📝 Cuaderno de Sesión (Hoy)", "📈 Análisis Longitudinal (Histórico)"])
+            tab_hoy, tab_historial = st.tabs(["📝 Cuaderno de Datos (Hoy)", "📈 Análisis Longitudinal (Histórico)"])
             
             with tab_hoy:
                 if datos_pac.get("estado_triage") in ["Pendiente", None]:
-                    st.warning("⚠️ El paciente no completó el Triage hoy.")
+                    st.warning("⚠️ El paciente aún no ha enviado su reporte diario.")
                 else:
                     semaforo = str(datos_pac.get("semaforo", "⚪"))
                     cohorte = str(datos_pac.get("cohorte", "MAMA"))
@@ -222,52 +250,67 @@ elif st.session_state.role == "Investigador":
                     if float(datos_pac.get("dolor_maximo", 0)) > 0:
                         c_alerta2.error(f"📍 Alerta Biomecánica: Foco de dolor en {datos_pac.get('zonas_dolor', '')}.")
 
-                    if "ROJO" in semaforo:
-                        st.error("🚨 ZONA ROJA: TOXICIDAD AGUDA. Carga bloqueada.")
-                        if st.button("Guardar Sesión Vagal 🫁"):
-                            supabase.table("registros_diarios").update({"estado_sesion": "Completado", "protocolo_vagal": True, "rpe_sesion": 0}).eq("id_paciente", paciente_sel).eq("fecha", hoy_str).execute()
-                            st.success("Guardado.")
+                    st.markdown("---")
+                    
+                    # =========================================================
+                    # BIFURCACIÓN DE LABORATORIO: CONTROL VS EXPERIMENTAL
+                    # =========================================================
+                    if grupo_sel == "CONTROL":
+                        st.info("ℹ️ **GRUPO CONTROL: Monitoreo Activo**")
+                        st.markdown("""
+                        Este paciente está asignado al brazo de **Cuidados Estándar (Usual Care)**.  
+                        No se prescriben intervenciones de ejercicio físico en plataforma. Su rol es registrar los biomarcadores pasivos para el análisis estadístico del estudio.
+                        """)
+                        
+                        if st.button("Marcar Signos Vitales Revisados ✅", type="primary"):
+                            supabase.table("registros_diarios").update({
+                                "estado_sesion": "Revisado (Control)", "ejercicio_1": "Ninguno", "kilos_ejercicio_1": 0.0,
+                                "ejercicio_2": "Ninguno", "kilos_ejercicio_2": 0.0, "rpe_sesion": 0
+                            }).eq("id_paciente", paciente_sel).eq("fecha", hoy_str).execute()
+                            st.success("✅ Registro de monitorización guardado en el eCRF.")
+                            
                     else:
-                        if "AMARILLO" in semaforo: st.warning("⚠️ ZONA AMARILLA: Down-Regulation (-1 Serie, +2 RIR).")
-                        else: st.success("✅ ZONA VERDE: Homeostasis.")
-
-                        c1, c2 = st.columns(2)
-                        ej1 = "Prensa" if cohorte == "PROSTATA" else "Sentadilla Copa"
-                        ej2 = "Press Máquina" if cohorte == "PROSTATA" else "Floor Press"
-                        
-                        val_k1 = 60.0 if cohorte == "PROSTATA" else 15.0
-                        val_k2 = 35.0 if cohorte == "PROSTATA" else 10.0
-
-                        with c1: kilos1 = st.number_input(f"Kilos ({ej1}):", min_value=0.0, value=val_k1, step=2.5)
-                        with c2: kilos2 = st.number_input(f"Kilos ({ej2}):", min_value=0.0, value=val_k2, step=2.5)
-                        
-                        if cohorte == "MAMA" and kilos2 > 25.0:
-                            st.error("🚨 **VIOLACIÓN DE REGLA CLÍNICA:** Riesgo de Linfedema. Reduzca la carga del tren superior.")
+                        # RUTA DE PRESCRIPCIÓN EXPERIMENTAL
+                        if "ROJO" in semaforo:
+                            st.error("🚨 ZONA ROJA: TOXICIDAD AGUDA. Carga bloqueada.")
+                            if st.button("Guardar Sesión Vagal 🫁"):
+                                supabase.table("registros_diarios").update({"estado_sesion": "Completado", "protocolo_vagal": True, "rpe_sesion": 0}).eq("id_paciente", paciente_sel).eq("fecha", hoy_str).execute()
+                                st.success("Guardado.")
                         else:
-                            rpe = st.slider("RPE (Carga Interna):", 0, 10, 6)
-                            if st.button("Guardar Kilos en Nube 💾", type="primary"):
-                                supabase.table("registros_diarios").update({
-                                    "estado_sesion": "Completado", "ejercicio_1": ej1, "kilos_ejercicio_1": float(kilos1),
-                                    "ejercicio_2": ej2, "kilos_ejercicio_2": float(kilos2), "rpe_sesion": rpe
-                                }).eq("id_paciente", paciente_sel).eq("fecha", hoy_str).execute()
-                                st.success("✅ Datos sincronizados.")
+                            if "AMARILLO" in semaforo: st.warning("⚠️ ZONA AMARILLA: Down-Regulation (-1 Serie, +2 RIR).")
+                            else: st.success("✅ ZONA VERDE: Homeostasis.")
+
+                            c1, c2 = st.columns(2)
+                            ej1 = "Prensa" if cohorte == "PROSTATA" else "Sentadilla Copa"
+                            ej2 = "Press Máquina" if cohorte == "PROSTATA" else "Floor Press"
+                            val_k1 = 60.0 if cohorte == "PROSTATA" else 15.0
+                            val_k2 = 35.0 if cohorte == "PROSTATA" else 10.0
+
+                            with c1: kilos1 = st.number_input(f"Kilos ({ej1}):", min_value=0.0, value=val_k1, step=2.5)
+                            with c2: kilos2 = st.number_input(f"Kilos ({ej2}):", min_value=0.0, value=val_k2, step=2.5)
+                            
+                            if cohorte == "MAMA" and kilos2 > 25.0:
+                                st.error("🚨 **VIOLACIÓN DE REGLA CLÍNICA:** Riesgo de Linfedema. Reduzca la carga del tren superior.")
+                            else:
+                                rpe = st.slider("RPE (Carga Interna):", 0, 10, 6)
+                                if st.button("Guardar Kilos en Nube 💾", type="primary"):
+                                    supabase.table("registros_diarios").update({
+                                        "estado_sesion": "Completado", "ejercicio_1": ej1, "kilos_ejercicio_1": float(kilos1),
+                                        "ejercicio_2": ej2, "kilos_ejercicio_2": float(kilos2), "rpe_sesion": rpe
+                                    }).eq("id_paciente", paciente_sel).eq("fecha", hoy_str).execute()
+                                    st.success("✅ Datos sincronizados.")
 
             with tab_historial:
                 st.markdown(f"### 📈 Evolución Biomédica: `{paciente_sel}`")
-                
-                # Descargar todo el historial del paciente de Supabase
                 res_hist = supabase.table("registros_diarios").select("fecha, fatiga_bfi, dolor_maximo, eficiencia_sueno, kilos_ejercicio_1, rpe_sesion").eq("id_paciente", paciente_sel).order("fecha").execute()
                 
-                if len(res_hist.data) > 1: # Mínimo 2 puntos para dibujar una línea
+                if len(res_hist.data) > 1:
                     df_hist = pd.DataFrame(res_hist.data)
-                    df_hist["fecha"] = pd.to_datetime(df_hist["fecha"]).dt.strftime('%d-%m') # Solo día y mes
+                    df_hist["fecha"] = pd.to_datetime(df_hist["fecha"]).dt.strftime('%d-%m')
                     df_hist.set_index("fecha", inplace=True)
-                    
-                    # Limpiamos nulos matemáticos para que la gráfica no se corte
                     df_hist.fillna(0, inplace=True)
 
                     col_g1, col_g2 = st.columns(2)
-                    
                     with col_g1:
                         st.markdown("**1. Toxicidad Central (Fatiga vs Dolor)**")
                         st.caption("Síntomas reportados (0-10)")
@@ -278,11 +321,13 @@ elif st.session_state.role == "Investigador":
                         st.caption("Monitorización del Ritmo Circadiano")
                         st.line_chart(df_hist[["eficiencia_sueno"]], color=["#1f77b4"])
                         
-                    st.markdown("**3. Carga Interna vs Carga Externa**")
-                    st.caption("Kilos movilizados vs sRPE Percibido (0-10)")
-                    st.line_chart(df_hist[["kilos_ejercicio_1", "rpe_sesion"]], color=["#2ca02c", "#9467bd"])
+                    # 💡 Regla Visual: El Grupo Control no tiene gráficos de Kilos ni RPE porque no entrena
+                    if grupo_sel != "CONTROL":
+                        st.markdown("**3. Carga Interna vs Carga Externa**")
+                        st.caption("Kilos movilizados vs sRPE Percibido (0-10)")
+                        st.line_chart(df_hist[["kilos_ejercicio_1", "rpe_sesion"]], color=["#2ca02c", "#9467bd"])
                 else:
-                    st.info("Aún no hay datos históricos suficientes. Las gráficas aparecerán en cuanto el paciente tenga 2 o más días registrados.")
+                    st.info("Aún no hay datos históricos suficientes. Las gráficas aparecerán con 2 o más días registrados.")
                             
     except Exception as e:
         st.error(f"Error interno del Radar: {e}")
