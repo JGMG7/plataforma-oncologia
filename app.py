@@ -7,11 +7,12 @@ import streamlit.components.v1 as components
 import qrcode
 from io import BytesIO
 
-st.set_page_config(page_title="DTx Oncología | ISIEF-CURE-UDELAR", page_icon="🧬", layout="wide")
+st.set_page_config(page_title="DTx Oncología | Udelar", page_icon="🧬", layout="wide")
 
 # =====================================================================
-# ⚙️ INYECCIÓN PWA (CAMUFLAJE Y CAMBIO DE ÍCONO)
+# ⚙️ INYECCIÓN PWA (CAMUFLAJE Y MODO APP NATIVA)
 # =====================================================================
+# 1. Ocultar menús web y evitar el rebote al hacer scroll
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
@@ -21,51 +22,40 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Aniquilar logos de Streamlit e inyectar el ADN Clínico
+# 2. Forzar Standalone Mode (Pantalla Completa en iOS y Android)
 components.html(
     """
     <script>
         var head = window.parent.document.querySelector("head");
-        
-        // A) Forzar Pantalla Completa en celulares
         if (!head.querySelector('meta[name="apple-mobile-web-app-capable"]')) {
             var m1 = window.parent.document.createElement('meta'); m1.name = "apple-mobile-web-app-capable"; m1.content = "yes"; head.appendChild(m1);
             var m2 = window.parent.document.createElement('meta'); m2.name = "apple-mobile-web-app-status-bar-style"; m2.content = "black-translucent"; head.appendChild(m2);
+            var m3 = window.parent.document.createElement('meta'); m3.name = "mobile-web-app-capable"; m3.content = "yes"; head.appendChild(m3);
         }
-        
-        // B) Destruir la "Cédula" de Streamlit
-        var stIcons = head.querySelectorAll('link[rel="manifest"], link[rel="shortcut icon"], link[rel="icon"], link[rel="apple-touch-icon"]');
-        stIcons.forEach(i => i.remove());
-        
-        // C) Inyectar Logo Clínico (ADN 3D)
-        var customLogo = "https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Dna/3D/dna_3d.png";
-        
-        var newIcon = window.parent.document.createElement('link');
-        newIcon.rel = "apple-touch-icon";
-        newIcon.href = customLogo;
-        head.appendChild(newIcon);
-        
-        var newIcon2 = window.parent.document.createElement('link');
-        newIcon2.rel = "icon";
-        newIcon2.href = customLogo;
-        head.appendChild(newIcon2);
-        
-        // D) Crear un Manifest falso en tiempo real
-        var manifest = {
-            "name": "DTx Udelar",
-            "short_name": "DTx",
-            "display": "standalone",
-            "start_url": window.parent.location.pathname + window.parent.location.search,
-            "icons": [{"src": customLogo, "sizes": "256x256", "type": "image/png"}]
-        };
-        var blob = new Blob([JSON.stringify(manifest)], {type: "application/json"});
-        var linkManifest = window.parent.document.createElement('link');
-        linkManifest.rel = "manifest";
-        linkManifest.href = URL.createObjectURL(blob);
-        head.appendChild(linkManifest);
     </script>
     """, height=0, width=0
 )
+
+# --- CONEXIÓN A LA NUBE Y SESIÓN ---
+@st.cache_resource
+def init_connection():
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+
+try: supabase: Client = init_connection()
+except Exception as e: st.error(f"Error de red: {e}"); st.stop()
+
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.role = None; st.session_state.user_id = None
+    st.session_state.cohorte = None; st.session_state.grupo = None
+
+def calcular_semaforo(eficiencia, latencia, fatiga, estres, dolor_max):
+    if fatiga >= 8 or dolor_max >= 7: return "🔴 ROJO"
+    elif eficiencia < 85.0 or latencia > 45 or fatiga >= 5 or estres >= 6: return "🟡 AMARILLO"
+    else: return "🟢 VERDE"
+
+hoy_str = str(datetime.date.today())
+
 # =====================================================================
 # 🔐 PANTALLA DE LOGIN
 # =====================================================================
@@ -97,7 +87,7 @@ if not st.session_state.logged_in:
             with st.form("login_investigador"):
                 pass_input = st.text_input("Contraseña Maestra", type="password")
                 if st.form_submit_button("Desbloquear Radar Clínico 🔐", use_container_width=True, type="primary"):
-                    if pass_input == st.secrets.get("INVESTIGADOR_PASSWORD", "15.14.15.3.5.6.1."):
+                    if pass_input == st.secrets.get("INVESTIGADOR_PASSWORD", "Udelar2026"):
                         st.session_state.logged_in = True; st.session_state.role = "Investigador"
                         st.session_state.user_id = "PI"; st.rerun()
                     else: st.error("❌ Contraseña denegada.")
@@ -184,7 +174,7 @@ if st.session_state.role == "Paciente":
 elif st.session_state.role == "Investigador":
     st.title("📡 Radar Clínico y Monitoreo RCT")
     
-    # ⚠️ LINK DE TU APP EN STREAMLIT CLOUD:
+    # ⚠️ REEMPLAZA ESTE TEXTO CON EL LINK EXACTO DE TU APP EN STREAMLIT CLOUD:
     url_app = "https://plataforma-oncologia-4zktoxiwtebukcvht57msb.streamlit.app/?embed=true" 
     
     try:
