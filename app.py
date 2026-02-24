@@ -88,7 +88,7 @@ if not st.session_state.logged_in:
                     else: st.error("❌ Contraseña denegada.")
     st.stop() 
 
-st.sidebar.title("DTx Udelar 🧬")
+st.sidebar.title("DTx ISEF-CURE-UDELAR 🧬")
 if st.session_state.role == "Investigador": st.sidebar.success(f"✅ Panel Clínico\n📅 {nombres_dias[dia_semana]}, {hoy_str}")
 else: st.sidebar.info(f"👤 {st.session_state.user_id}"); st.sidebar.caption(f"📅 Fecha: {hoy_str}")
 st.sidebar.divider()
@@ -334,3 +334,4 @@ elif st.session_state.role == "Investigador":
                             
 
     except Exception as e: st.error(f"Error de sistema: {e}")
+
