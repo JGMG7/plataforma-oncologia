@@ -166,7 +166,7 @@ if st.session_state.role == "Paciente":
 # 🔬 UNIVERSO 2: INVESTIGADOR (RCT, SOP Y DOSIFICACIÓN L-M-V)
 # =====================================================================
 elif st.session_state.role == "Investigador":
-    st.title("📡 Quirófano Clínico (Producción V2.0)")
+    st.title("📡 Radar Clínico y Monitoreo")
     
     # ⚠️ RECUERDA PONER TU ENLACE REAL DE STREAMLIT AQUÍ
     url_app = "https://plataforma-oncologia-4zktoxiwtebukcvht57msb.streamlit.app/?embed=true" 
@@ -334,5 +334,6 @@ elif st.session_state.role == "Investigador":
                             
 
     except Exception as e: st.error(f"Error de sistema: {e}")
+
 
 
