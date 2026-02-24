@@ -66,7 +66,7 @@ def obtener_intensidad(dia_semana):
 if not st.session_state.logged_in:
     col_izq, col_login, col_der = st.columns([1, 2, 1])
     with col_login:
-        st.markdown("<h2 style='text-align: center;'>🧬 DTx Udelar</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>🧬 DTx ISEF-CURE-UDELAR</h2>", unsafe_allow_html=True)
         tab_paciente, tab_investigador = st.tabs(["📱 Pacientes", "🔬 Equipo Clínico"])
         with tab_paciente:
             with st.form("login_pac"):
@@ -334,4 +334,5 @@ elif st.session_state.role == "Investigador":
                             
 
     except Exception as e: st.error(f"Error de sistema: {e}")
+
 
