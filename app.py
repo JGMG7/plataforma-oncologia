@@ -7,7 +7,7 @@ import streamlit.components.v1 as components
 import qrcode
 from io import BytesIO
 
-st.set_page_config(page_title="DTx Udelar | Ensayo Clínico", page_icon="🧬", layout="wide")
+st.set_page_config(page_title="DTx ISEF-CURE-UDELAR", page_icon="🧬", layout="wide")
 
 # =====================================================================
 # ⚙️ INYECCIÓN PWA Y ZONA HORARIA
@@ -332,4 +332,5 @@ elif st.session_state.role == "Investigador":
                                         except Exception as e:
                                             st.error(f"Error al guardar: {e}. Asegúrate de haber agregado las columnas ejercicio_3 y ejercicio_4 en SQL.")
                             
+
     except Exception as e: st.error(f"Error de sistema: {e}")
