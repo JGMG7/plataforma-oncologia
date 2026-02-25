@@ -19,7 +19,7 @@ components.html("""<script>var head = window.parent.document.querySelector("head
 zona_horaria = pytz.timezone('America/Montevideo')
 fecha_hoy_uy = datetime.datetime.now(zona_horaria).date()
 hoy_str = str(fecha_hoy_uy)
-dia_semana = fecha_hoy_uy.weekday() # 0=Lunes, 1=Martes, 2=Miércoles, 3=Jueves, 4=Viernes, 5=Sábado, 6=Domingo
+dia_semana = fecha_hoy_uy.weekday() 
 nombres_dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
 # --- CONEXIÓN A LA NUBE ---
@@ -38,9 +38,9 @@ if 'logged_in' not in st.session_state:
 # =====================================================================
 # 📚 MOTOR CIENTÍFICO (RUTINAS Y REGLAS)
 # =====================================================================
-def calcular_semaforo(eficiencia, latencia, fatiga, estres, dolor_max):
-    if fatiga >= 8 or dolor_max >= 7: return "🔴 ROJO"
-    elif eficiencia < 85.0 or latencia > 45 or fatiga >= 5 or estres >= 6: return "🟡 AMARILLO"
+def calcular_semaforo(eficiencia, latencia, fatiga, estres, dolor_max, estado_animo):
+    if fatiga >= 8 or dolor_max >= 7 or estado_animo in ["Muy mal", "Mal"]: return "🔴 ROJO"
+    elif eficiencia < 85.0 or latencia > 45 or fatiga >= 5 or estres >= 6 or estado_animo == "Regular": return "🟡 AMARILLO"
     else: return "🟢 VERDE"
 
 def obtener_rutina(cohorte, dia_semana):
@@ -83,7 +83,7 @@ if not st.session_state.logged_in:
             with st.form("login_inv"):
                 pass_input = st.text_input("Contraseña Maestra", type="password")
                 if st.form_submit_button("Desbloquear Radar 🔐", use_container_width=True, type="primary"):
-                    if pass_input == st.secrets.get("INVESTIGADOR_PASSWORD", "Udelar2026"):
+                    if pass_input == st.secrets.get("INVESTIGADOR_PASSWORD", "123456789"):
                         st.session_state.logged_in = True; st.session_state.role = "Investigador"; st.session_state.user_id = "PI"; st.rerun()
                     else: st.error("❌ Contraseña denegada.")
     st.stop() 
@@ -111,28 +111,47 @@ if st.session_state.role == "Paciente":
             
         st.divider()
         
-        st.subheader("💤 1. Arquitectura del Sueño")
+        # --- BLOQUE 1: SUEÑO ---
+        st.subheader("💤 1. Arquitectura y Calidad del Sueño")
         c1, c2 = st.columns(2)
         with c1: hora_acostar = st.time_input("🛌 Hora acostarse", datetime.time(22, 30))
         with c2: hora_despertar = st.time_input("🌅 Hora despertarse", datetime.time(6, 30))
+        
         c3, c4 = st.columns(2)
         with c3: latencia = st.number_input("⏱️ Min. hasta dormir:", 0, 180, 15, 5)
-        with c4: despertares = st.number_input("🔄 Min. despierto:", 0, 240, 0, 5)
+        with c4: despertares_veces = st.number_input("🔄 N° veces que despertaste:", 0, 20, 0, 1)
+
+        calidad_sueno = st.selectbox("⭐ ¿Cómo evalúas la calidad de tu sueño?", ["Malo", "Regular", "Bueno", "Reparador"], index=2)
 
         dt_acostar = datetime.datetime.combine(fecha_hoy_uy, hora_acostar)
         dt_despertar = datetime.datetime.combine(fecha_hoy_uy, hora_despertar)
         if dt_despertar <= dt_acostar: dt_despertar += datetime.timedelta(days=1)
         t_cama = (dt_despertar - dt_acostar).total_seconds() / 60
-        t_dormido = max(0, t_cama - latencia - despertares) 
+        
+        # Penalizamos 10 min de vigilia por cada despertar reportado
+        t_dormido = max(0, t_cama - latencia - (despertares_veces * 10)) 
         eficiencia = (t_dormido / t_cama) * 100 if t_cama > 0 else 0
-        st.info(f"📊 Tiempo de sueño: **{t_dormido/60:.1f} hs netas**.")
+        st.info(f"📊 Tiempo estimado de sueño: **{t_dormido/60:.1f} hs netas**.")
 
         st.divider()
-        st.subheader("🔋 2. Fatiga y Estrés")
+        # --- BLOQUE 2: ÁNIMO Y LUZ SOLAR ---
+        st.subheader("🧠 2. Estado de Ánimo y Exposición Solar")
+        estado_animo = st.select_slider("¿Cómo te sientes hoy?", ["Muy mal", "Mal", "Regular", "Bien", "Muy Bien", "Excelente"], value="Bien")
+        
+        st.markdown("**¿Cuánto tiempo estuviste expuesto directamente al Sol ayer?**")
+        csol1, csol2 = st.columns(2)
+        with csol1: sol_horas = st.number_input("Horas:", 0, 10, 0, 1)
+        with csol2: sol_minutos = st.number_input("Minutos:", 0, 59, 15, 5)
+        tiempo_sol_total_min = (sol_horas * 60) + sol_minutos
+
+        st.divider()
+        # --- BLOQUE 3: FATIGA Y DOLOR ---
+        st.subheader("🔋 3. Fatiga y Estrés")
         fatiga = st.select_slider("Fatiga física (0=Energía | 10=Agotamiento)", list(range(11)), 2)
         estres = st.select_slider("Estrés/Ansiedad (0=Paz | 10=Angustia)", list(range(11)), 2)
+        
         st.divider()
-        st.subheader("🦴 3. Dolor Corporal")
+        st.subheader("🦴 4. Dolor Corporal")
         zonas_afectadas = st.multiselect("📍 Zonas afectadas:", ["Hombro Izq", "Hombro Der", "Lumbar", "Rodillas", "Neuropatía"])
         dolor_max = 0
         if zonas_afectadas:
@@ -145,8 +164,10 @@ if st.session_state.role == "Paciente":
         if st.button(btn_txt, use_container_width=True, type="primary"):
             datos_triage = {
                 "id_paciente": st.session_state.user_id, "fecha": hoy_str, "estado_triage": "Completado", 
-                "semaforo": calcular_semaforo(eficiencia, latencia, fatiga, estres, dolor_max), 
-                "eficiencia_sueno": eficiencia, "latencia_min": latencia, "despertares_min": despertares, 
+                "semaforo": calcular_semaforo(eficiencia, latencia, fatiga, estres, dolor_max, estado_animo), 
+                "eficiencia_sueno": eficiencia, "latencia_min": latencia, 
+                "despertares_veces": despertares_veces, "calidad_sueno": calidad_sueno,
+                "estado_animo": estado_animo, "exposicion_sol_min": tiempo_sol_total_min,
                 "fatiga_bfi": fatiga, "estres_nccn": estres, "dolor_maximo": dolor_max, 
                 "zonas_dolor": ", ".join(zonas_afectadas) if zonas_afectadas else "Ninguna"
             }
@@ -168,7 +189,7 @@ if st.session_state.role == "Paciente":
 elif st.session_state.role == "Investigador":
     st.title("📡 Radar de Monitoreo")
     
-    # ⚠️ RECUERDA PONER TU ENLACE REAL DE STREAMLIT AQUÍ
+    # ⚠️ ENLACE REAL DE STREAMLIT
     url_app = "https://plataforma-oncologia-4zktoxiwtebukcvht57msb.streamlit.app/?embed=true" 
 
     try:
@@ -179,18 +200,19 @@ elif st.session_state.role == "Investigador":
         if df_pacientes.empty: st.stop()
             
         if len(res_registros.data) > 0: df_radar = pd.merge(df_pacientes, pd.DataFrame(res_registros.data), on="id_paciente", how="left")
-        else: df_radar = df_pacientes.copy(); df_radar[["estado_triage", "semaforo", "eficiencia_sueno", "fatiga_bfi", "dolor_maximo", "zonas_dolor", "estado_sesion"]] = None
+        else: df_radar = df_pacientes.copy(); df_radar[["estado_triage", "semaforo", "eficiencia_sueno", "fatiga_bfi", "dolor_maximo", "zonas_dolor", "estado_sesion", "estado_animo"]] = None
                 
         if 'grupo' not in df_radar.columns: df_radar['grupo'] = 'EXPERIMENTAL'
         if 'fecha_inicio' not in df_radar.columns: df_radar['fecha_inicio'] = None
+        if 'estado_animo' not in df_radar.columns: df_radar['estado_animo'] = 'S/D'
             
         df_mostrar = df_radar.rename(columns={
             "id_paciente": "ID Paciente", "grupo": "Brazo", "cohorte": "Cohorte", "estado_triage": "Estado AM",
-            "semaforo": "Semáforo", "eficiencia_sueno": "Eficiencia %", "fatiga_bfi": "Fatiga", "dolor_maximo": "Dolor"
-        }).fillna({"Brazo": "EXPERIMENTAL", "Estado AM": "Pendiente", "Semáforo": "⚪", "Eficiencia %": 0.0, "Fatiga": 0, "Dolor": 0})
+            "semaforo": "Semáforo", "estado_animo": "Ánimo", "eficiencia_sueno": "Eficiencia %", "fatiga_bfi": "Fatiga", "dolor_maximo": "Dolor"
+        }).fillna({"Brazo": "EXPERIMENTAL", "Estado AM": "Pendiente", "Semáforo": "⚪", "Ánimo": "S/D", "Eficiencia %": 0.0, "Fatiga": 0, "Dolor": 0})
         
         st.subheader("👥 Estado de las Cohortes (Hoy)")
-        st.dataframe(df_mostrar[["ID Paciente", "Brazo", "Cohorte", "Estado AM", "Semáforo", "Eficiencia %", "Fatiga", "Dolor"]].set_index("ID Paciente"), use_container_width=True)
+        st.dataframe(df_mostrar[["ID Paciente", "Brazo", "Cohorte", "Estado AM", "Semáforo", "Ánimo", "Eficiencia %", "Fatiga", "Dolor"]].set_index("ID Paciente"), use_container_width=True)
         st.divider()
         
         if not df_radar.empty:
@@ -201,7 +223,7 @@ elif st.session_state.role == "Investigador":
             
             tab_hoy, tab_admin, tab_qr = st.tabs(["📝 Cuaderno de Sesión", "⚙️ Configuración & Histórico", "📲 Enrolar Paciente (QR)"])
             
-            # --- CÁLCULO DE SEMANA (ROLLING ADMISSION) ---
+            # --- CÁLCULO DE SEMANA ---
             f_inicio = datos_pac.get("fecha_inicio")
             if pd.isna(f_inicio) or f_inicio is None:
                 semana_actual = "Paciente NO ENROLADO"
@@ -222,15 +244,45 @@ elif st.session_state.role == "Investigador":
                     st.success(f"🚀 **Actualmente cursando la {semana_actual} del ensayo.**")
                     
                 st.divider()
-                st.markdown(f"### 📈 Evolución: `{paciente_sel}`")
-                res_hist = supabase.table("registros_diarios").select("fecha, fatiga_bfi, dolor_maximo, eficiencia_sueno, kilos_ejercicio_1, rpe_sesion").eq("id_paciente", paciente_sel).order("fecha").execute()
+                st.markdown(f"### 📈 Evolución Clínica Integrada: `{paciente_sel}`")
+                
+                # --- NUEVOS GRÁFICOS INTERACTIVOS ---
+                res_hist = supabase.table("registros_diarios").select("fecha, fatiga_bfi, dolor_maximo, eficiencia_sueno, kilos_ejercicio_1, rpe_sesion, estado_animo, calidad_sueno, exposicion_sol_min").eq("id_paciente", paciente_sel).order("fecha").execute()
+                
                 if len(res_hist.data) > 1:
-                    df_hist = pd.DataFrame(res_hist.data); df_hist["fecha"] = pd.to_datetime(df_hist["fecha"]).dt.strftime('%d-%m'); df_hist.set_index("fecha", inplace=True); df_hist.fillna(0, inplace=True)
+                    df_hist = pd.DataFrame(res_hist.data)
+                    df_hist["fecha"] = pd.to_datetime(df_hist["fecha"]).dt.strftime('%d-%m')
+                    df_hist.set_index("fecha", inplace=True)
+                    
+                    # Convertimos textos a números para graficarlos
+                    map_animo = {"Muy mal": 1, "Mal": 2, "Regular": 3, "Bien": 4, "Muy Bien": 5, "Excelente": 6}
+                    map_sueno = {"Malo": 1, "Regular": 2, "Bueno": 3, "Reparador": 4}
+                    
+                    if "estado_animo" in df_hist.columns: df_hist["Puntaje Ánimo (1-6)"] = df_hist["estado_animo"].map(map_animo).fillna(0)
+                    if "calidad_sueno" in df_hist.columns: df_hist["Puntaje Sueño (1-4)"] = df_hist["calidad_sueno"].map(map_sueno).fillna(0)
+                        
+                    df_hist.fillna(0, inplace=True)
+                    
                     c_g1, c_g2 = st.columns(2)
-                    with c_g1: st.line_chart(df_hist[["fatiga_bfi", "dolor_maximo"]], color=["#ff4b4b", "#ffa500"])
-                    with c_g2: st.line_chart(df_hist[["eficiencia_sueno"]], color=["#1f77b4"])
-                    if grupo_sel != "CONTROL": st.line_chart(df_hist[["kilos_ejercicio_1", "rpe_sesion"]], color=["#2ca02c", "#9467bd"])
-                else: st.info("Aún no hay datos históricos suficientes.")
+                    with c_g1: 
+                        st.markdown("**1. Respuesta Somática (Fatiga vs Dolor)**")
+                        st.line_chart(df_hist[["fatiga_bfi", "dolor_maximo"]], color=["#ff4b4b", "#ffa500"])
+                    with c_g2: 
+                        st.markdown("**2. Psico-Oncología (Ánimo vs Calidad Sueño)**")
+                        if "Puntaje Ánimo (1-6)" in df_hist.columns:
+                            st.line_chart(df_hist[["Puntaje Sueño (1-4)", "Puntaje Ánimo (1-6)"]], color=["#1f77b4", "#e377c2"])
+                        
+                    c_g3, c_g4 = st.columns(2)
+                    with c_g3:
+                        st.markdown("**3. Cronobiología (Minutos de Exposición Solar)**")
+                        if "exposicion_sol_min" in df_hist.columns:
+                            st.bar_chart(df_hist[["exposicion_sol_min"]], color=["#ffd700"])
+                    with c_g4:
+                        if grupo_sel != "CONTROL": 
+                            st.markdown("**4. Carga Interna vs Externa (Kg vs RPE)**")
+                            st.line_chart(df_hist[["kilos_ejercicio_1", "rpe_sesion"]], color=["#2ca02c", "#bcbd22"])
+                else: 
+                    st.info("Aún no hay datos históricos suficientes para dibujar las curvas.")
 
             with tab_qr:
                 st.markdown("### 🖨️ Instalación de App en Celular del Paciente")
@@ -246,9 +298,16 @@ elif st.session_state.role == "Investigador":
                 else:
                     semaforo = str(datos_pac.get("semaforo", "⚪"))
                     st.markdown(f"**Sujeto:** `{paciente_sel}` | **Fase:** `{semana_actual}` | **Condición AM:** {semaforo}")
+                    
                     c_alerta1, c_alerta2 = st.columns(2)
-                    if float(datos_pac.get("eficiencia_sueno", 100)) < 85.0: c_alerta1.warning(f"💤 Alerta Neural: Eficiencia del sueño en {float(datos_pac.get('eficiencia_sueno', 0)):.1f}%.")
-                    if float(datos_pac.get("dolor_maximo", 0)) > 0: c_alerta2.error(f"📍 Alerta Biomecánica: Foco de dolor en {datos_pac.get('zonas_dolor', '')}.")
+                    if float(datos_pac.get("eficiencia_sueno", 100)) < 85.0 or datos_pac.get("calidad_sueno") == "Malo": 
+                        c_alerta1.warning(f"💤 Alerta Neural: Eficiencia {float(datos_pac.get('eficiencia_sueno', 0)):.1f}% | Calidad: {datos_pac.get('calidad_sueno', 'S/D')}")
+                    
+                    animo = str(datos_pac.get("estado_animo", "Bien"))
+                    if animo in ["Muy mal", "Mal"]:
+                        c_alerta2.error(f"🧠 Alerta Psicológica: El paciente reportó un estado de ánimo '{animo}'.")
+                    elif float(datos_pac.get("dolor_maximo", 0)) > 0: 
+                        c_alerta2.error(f"📍 Alerta Biomecánica: Foco de dolor en {datos_pac.get('zonas_dolor', '')}.")
                     st.markdown("---")
                     
                     if grupo_sel == "CONTROL":
@@ -260,7 +319,6 @@ elif st.session_state.role == "Investigador":
                             st.success("✅ Registro de monitorización guardado en el eCRF.")
                             
                     else:
-                        # VALIDACIÓN DE DÍAS (SOLO L-M-V PRESCRIPCIÓN)
                         if dia_semana not in [0, 2, 4]:
                             st.info("🛋️ **DÍA DE RECUPERACIÓN PASIVA.**")
                             st.markdown("Hoy no corresponde sesión de entrenamiento de fuerza. El sistema ha registrado el reporte matutino del paciente para el análisis de recuperación longitudinal.")
@@ -268,14 +326,13 @@ elif st.session_state.role == "Investigador":
                             intensidad_hoy = obtener_intensidad(dia_semana)
                             st.subheader(f"🎯 Periodización del Día: {intensidad_hoy}")
                             
-                            # 👨‍🏫 DIRECTRICES PARA EL PROFESOR (SOPs)
                             with st.expander("📖 **VER DIRECTRICES DE LA SESIÓN (SOP)**", expanded=True):
                                 st.markdown("""
                                 **Directrices Generales (Obligatorias):**
                                 * 🏃 **Entrada en calor:** 5-10 min aeróbico ligero + Movilidad articular dinámica de todo el cuerpo.
                                 * ⏱️ **Pausas:** **2 minutos estrictos** entre series de fuerza.
                                 * ❤️ **Monitoreo FC:** Tomar Frecuencia Cardíaca en cuello/muñeca durante 15 segundos y multiplicar x4.
-                                * 🎛️ **Cadencia:** Controlada (**2-0-2-0**), 2s excéntrica bajando, sin pausa, 2s concéntrica empujando.
+                                * 🎛️ **Cadencia:** Controlada (**2-0-2-0**).
                                 """)
                                 
                                 if "VERDE" in semaforo:
@@ -332,9 +389,4 @@ elif st.session_state.role == "Investigador":
                                         except Exception as e:
                                             st.error(f"Error al guardar: {e}. Asegúrate de haber agregado las columnas ejercicio_3 y ejercicio_4 en SQL.")
                             
-
     except Exception as e: st.error(f"Error de sistema: {e}")
-
-
-
-
