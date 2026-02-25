@@ -7,7 +7,7 @@ import streamlit.components.v1 as components
 import qrcode
 from io import BytesIO
 
-st.set_page_config(page_title="DTx ISEF-CURE-UDELAR", page_icon="🧬", layout="wide")
+st.set_page_config(page_title="DTx Onco", page_icon="🧬", layout="wide")
 
 # =====================================================================
 # ⚙️ INYECCIÓN PWA Y ZONA HORARIA
@@ -15,7 +15,7 @@ st.set_page_config(page_title="DTx ISEF-CURE-UDELAR", page_icon="🧬", layout="
 st.markdown("""<style>#MainMenu {visibility: hidden;} header {visibility: hidden;} footer {visibility: hidden;} body { overscroll-behavior-y: contain; }</style>""", unsafe_allow_html=True)
 components.html("""<script>var head = window.parent.document.querySelector("head"); if (!head.querySelector('meta[name="apple-mobile-web-app-capable"]')) {var m1 = window.parent.document.createElement('meta'); m1.name = "apple-mobile-web-app-capable"; m1.content = "yes"; head.appendChild(m1); var m2 = window.parent.document.createElement('meta'); m2.name = "apple-mobile-web-app-status-bar-style"; m2.content = "black-translucent"; head.appendChild(m2);}</script>""", height=0, width=0)
 
-# Reloj Oficial Udelar (Uruguay)
+# Reloj Oficial (Uruguay)
 zona_horaria = pytz.timezone('America/Montevideo')
 fecha_hoy_uy = datetime.datetime.now(zona_horaria).date()
 hoy_str = str(fecha_hoy_uy)
@@ -66,7 +66,7 @@ def obtener_intensidad(dia_semana):
 if not st.session_state.logged_in:
     col_izq, col_login, col_der = st.columns([1, 2, 1])
     with col_login:
-        st.markdown("<h2 style='text-align: center;'>🧬 DTx ISEF-CURE-UDELAR</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>🧬 DTx Onco</h2>", unsafe_allow_html=True)
         tab_paciente, tab_investigador = st.tabs(["📱 Pacientes", "🔬 Equipo Clínico"])
         with tab_paciente:
             with st.form("login_pac"):
@@ -88,7 +88,7 @@ if not st.session_state.logged_in:
                     else: st.error("❌ Contraseña denegada.")
     st.stop() 
 
-st.sidebar.title("DTx ISEF-CURE-UDELAR 🧬")
+st.sidebar.title("DTx Onco 🧬")
 if st.session_state.role == "Investigador": st.sidebar.success(f"✅ Panel Clínico\n📅 {nombres_dias[dia_semana]}, {hoy_str}")
 else: st.sidebar.info(f"👤 {st.session_state.user_id}"); st.sidebar.caption(f"📅 Fecha: {hoy_str}")
 st.sidebar.divider()
@@ -166,7 +166,7 @@ if st.session_state.role == "Paciente":
 # 🔬 UNIVERSO 2: INVESTIGADOR (RCT, SOP Y DOSIFICACIÓN L-M-V)
 # =====================================================================
 elif st.session_state.role == "Investigador":
-    st.title("📡 Radar Clínico y Monitoreo")
+    st.title("📡 Radar de Monitoreo")
     
     # ⚠️ RECUERDA PONER TU ENLACE REAL DE STREAMLIT AQUÍ
     url_app = "https://plataforma-oncologia-4zktoxiwtebukcvht57msb.streamlit.app/?embed=true" 
@@ -218,11 +218,11 @@ elif st.session_state.role == "Investigador":
                         supabase.table("pacientes").update({"fecha_inicio": hoy_str}).eq("id_paciente", paciente_sel).execute()
                         st.success("✅ Fecha de inicio registrada. Por favor, selecciona otro paciente y vuelve a este para recargar.")
                 else:
-                    st.info(f"✅ El paciente inició el estudio el **{f_inicio}**.")
+                    st.info(f"✅ El participante inició el estudio el **{f_inicio}**.")
                     st.success(f"🚀 **Actualmente cursando la {semana_actual} del ensayo.**")
                     
                 st.divider()
-                st.markdown(f"### 📈 Evolución Biomédica: `{paciente_sel}`")
+                st.markdown(f"### 📈 Evolución: `{paciente_sel}`")
                 res_hist = supabase.table("registros_diarios").select("fecha, fatiga_bfi, dolor_maximo, eficiencia_sueno, kilos_ejercicio_1, rpe_sesion").eq("id_paciente", paciente_sel).order("fecha").execute()
                 if len(res_hist.data) > 1:
                     df_hist = pd.DataFrame(res_hist.data); df_hist["fecha"] = pd.to_datetime(df_hist["fecha"]).dt.strftime('%d-%m'); df_hist.set_index("fecha", inplace=True); df_hist.fillna(0, inplace=True)
@@ -334,6 +334,7 @@ elif st.session_state.role == "Investigador":
                             
 
     except Exception as e: st.error(f"Error de sistema: {e}")
+
 
 
 
