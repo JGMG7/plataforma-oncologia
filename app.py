@@ -261,7 +261,11 @@ elif st.session_state.role == "Investigador":
                     if "estado_animo" in df_hist.columns: df_hist["Puntaje Ánimo (1-6)"] = df_hist["estado_animo"].map(map_animo).fillna(0)
                     if "calidad_sueno" in df_hist.columns: df_hist["Puntaje Sueño (1-4)"] = df_hist["calidad_sueno"].map(map_sueno).fillna(0)
                         
-                    df_hist.fillna(0, inplace=True)
+                    # 🛠️ SOLUCIÓN: Llenamos con cero (0) SOLO las columnas puramente matemáticas
+                    cols_numericas = ["fatiga_bfi", "dolor_maximo", "eficiencia_sueno", "kilos_ejercicio_1", "rpe_sesion", "exposicion_sol_min", "Puntaje Ánimo (1-6)", "Puntaje Sueño (1-4)"]
+                    for col in cols_numericas:
+                        if col in df_hist.columns:
+                            df_hist[col] = pd.to_numeric(df_hist[col], errors='coerce').fillna(0)
                     
                     c_g1, c_g2 = st.columns(2)
                     with c_g1: 
